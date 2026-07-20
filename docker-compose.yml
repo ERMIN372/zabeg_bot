@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: zabeg
+      POSTGRES_USER: zabeg
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-zabeg}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zabeg -d zabeg"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://zabeg:${POSTGRES_PASSWORD:-zabeg}@postgres:5432/zabeg
+    command: alembic upgrade head
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  bot:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://zabeg:${POSTGRES_PASSWORD:-zabeg}@postgres:5432/zabeg
+    command: python -m bot.main
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  scheduler:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://zabeg:${POSTGRES_PASSWORD:-zabeg}@postgres:5432/zabeg
+    command: python -m scheduler.main
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
