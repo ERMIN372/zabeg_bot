@@ -11,9 +11,8 @@ import asyncio
 import logging
 
 from aiogram import Bot
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
 
+from bot.factory import make_bot
 from config import load_config
 from db.base import make_engine, make_sessionmaker
 from services.notify import send_notes
@@ -42,7 +41,7 @@ async def main() -> None:
 
     engine = make_engine(config.database_url)
     sessionmaker = make_sessionmaker(engine)
-    bot = Bot(config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = make_bot(config.bot_token)
 
     log.info("Планировщик запущен, тик каждые %s сек.", config.scheduler_tick_seconds)
     try:

@@ -2,11 +2,10 @@
 import asyncio
 import logging
 
-from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
+from aiogram import Dispatcher
 from aiogram.types import BotCommand
 
+from bot.factory import make_bot
 from bot.handlers import events, my_registrations, photos, profile, start, support
 from bot.handlers.admin import admin_router
 from bot.middlewares import DbSessionMiddleware, UserMiddleware
@@ -36,7 +35,7 @@ async def main() -> None:
     engine = make_engine(config.database_url)
     sessionmaker = make_sessionmaker(engine)
 
-    bot = Bot(config.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    bot = make_bot(config.bot_token)
     dp = Dispatcher()
     dp["config"] = config
     dp.update.outer_middleware(DbSessionMiddleware(sessionmaker))
