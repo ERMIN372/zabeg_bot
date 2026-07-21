@@ -14,6 +14,7 @@ def _get_int(name: str, default: int) -> int:
 @dataclass(frozen=True)
 class Config:
     bot_token: str
+    telegram_proxy: str
     database_url: str
     admin_ids: tuple[int, ...]
     support_chat_id: int
@@ -34,6 +35,7 @@ def load_config() -> Config:
     )
     return Config(
         bot_token=os.getenv("BOT_TOKEN", ""),
+        telegram_proxy=os.getenv("TELEGRAM_PROXY", "").strip(),
         database_url=os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./zabeg.db"),
         admin_ids=admin_ids,
         support_chat_id=_get_int("SUPPORT_CHAT_ID", 0),

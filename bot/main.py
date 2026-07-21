@@ -35,7 +35,9 @@ async def main() -> None:
     engine = make_engine(config.database_url)
     sessionmaker = make_sessionmaker(engine)
 
-    bot = make_bot(config.bot_token)
+    bot = make_bot(config.bot_token, config.telegram_proxy or None)
+    if config.telegram_proxy:
+        log.info("Telegram API через прокси")
     dp = Dispatcher()
     dp["config"] = config
     dp.update.outer_middleware(DbSessionMiddleware(sessionmaker))

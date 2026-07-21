@@ -41,7 +41,7 @@ async def main() -> None:
 
     engine = make_engine(config.database_url)
     sessionmaker = make_sessionmaker(engine)
-    bot = make_bot(config.bot_token)
+    bot = make_bot(config.bot_token, config.telegram_proxy or None)
 
     log.info("Планировщик запущен, тик каждые %s сек.", config.scheduler_tick_seconds)
     try:
