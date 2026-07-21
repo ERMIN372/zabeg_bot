@@ -31,6 +31,10 @@ services:
       DATABASE_URL: postgresql+asyncpg://zabeg:${POSTGRES_PASSWORD:-zabeg}@postgres:5432/zabeg
     command: python -m bot.main
     restart: unless-stopped
+    # api.telegram.org резолвится и по IPv6, которого нет в docker-сети
+    # ("Network is unreachable") — принудительно отключаем IPv6, идём по IPv4.
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -42,6 +46,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://zabeg:${POSTGRES_PASSWORD:-zabeg}@postgres:5432/zabeg
     command: python -m scheduler.main
     restart: unless-stopped
+    # см. комментарий в сервисе bot: отключаем IPv6 ради IPv4-доступа к Telegram
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
     depends_on:
       migrate:
         condition: service_completed_successfully
