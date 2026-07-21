@@ -2,10 +2,7 @@ import html
 
 from aiogram.types import InlineKeyboardMarkup, Message
 
-from bot.keyboards import consent_kb
-from config import Config
 from db.models import RegStatus, Registration
-from services.content import KEY_CONSENT, get_content
 from services.timeutil import format_date_ru, format_time_ru
 
 
@@ -51,11 +48,6 @@ async def send_card(
         except Exception:
             pass  # битый file_id — падаем в текст
     await message.answer(text, reply_markup=markup)
-
-
-async def ask_consent(message: Message, session, config: Config) -> None:
-    text, _ = await get_content(session, KEY_CONSENT)
-    await message.answer(esc(text), reply_markup=consent_kb(config.privacy_policy_url))
 
 
 def reg_details_text(reg: Registration, header: str = "Вы записаны!") -> str:

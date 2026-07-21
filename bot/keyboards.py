@@ -29,10 +29,3 @@ def back_kb(callback_data: str = "menu") -> InlineKeyboardMarkup:
 
 def menu_btn_row() -> list[InlineKeyboardButton]:
     return [btn("🏠 Главное меню", "menu")]
-
-
-def consent_kb(policy_url: str) -> InlineKeyboardMarkup:
-    return kb(
-        [btn("✅ Согласен", "consent:accept")],
-        [ubtn("📄 Политика конфиденциальности", policy_url)],
-    )

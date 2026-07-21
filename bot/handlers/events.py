@@ -7,7 +7,6 @@ from aiogram.types import CallbackQuery, Message
 
 from bot.handlers.profile import start_profile
 from bot.helpers import (
-    ask_consent,
     esc,
     plural_ru,
     safe_delete,
@@ -110,13 +109,11 @@ async def _ensure_ready(
     cb: CallbackQuery, session, db_user: User, config: Config,
     state: FSMContext, after: str,
 ) -> bool:
-    """Согласие на ПДн и заполненная карточка — обязательны для записи."""
-    if not db_user.has_pdn_consent:
-        await ask_consent(cb.message, session, config)
-        await cb.answer("Сначала нужно согласие на обработку данных")
-        return False
+    """Заполненная карточка обязательна для записи. Согласие на ПДн фиксируется
+    внутри анкеты (в момент «Поделиться контактом»), поэтому заполненный
+    профиль => согласие уже получено."""
     if not db_user.profile_complete:
-        await start_profile(cb.message, state, after)
+        await start_profile(cb.message, state, after, session, config)
         await cb.answer()
         return False
     return True
