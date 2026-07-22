@@ -9,7 +9,7 @@ from bot.helpers import esc, safe_delete
 from bot.keyboards import btn, kb
 from bot.states import AdminEditContent, AdminMoveEvent
 from config import Config
-from db.models import Event, EventKind, EventStatus, RegStatus, Registration
+from db.models import Event, EventKind, EventStatus, Location, RegStatus, Registration
 from services import registration as reg_service
 from services.content import KEY_ABOUT, KEY_LABELS, get_content, set_content
 from services.export import registrations_csv
@@ -66,7 +66,10 @@ STATUS_MARK = {
 async def cb_admin_events(cb: CallbackQuery, session):
     events = (
         await session.execute(
-            sa.select(Event).order_by(Event.starts_at.desc()).limit(20)
+            sa.select(Event)
+            .where(Event.status != EventStatus.CANCELLED)
+            .order_by(Event.starts_at.desc())
+            .limit(20)
         )
     ).scalars().all()
     rows = [
@@ -118,6 +121,7 @@ async def show_admin_event_card(message: Message, session, event: Event) -> None
         [btn("📤 Экспорт CSV", f"adm:evexp:{event.id}")],
         [btn("📅 Перенести", f"adm:move:{event.id}"),
          btn("🚫 Отменить", f"adm:cancel:{event.id}")],
+        [btn("🗑 Удалить", f"adm:del:{event.id}")],
         [btn("⬅️ Назад", "adm:events")],
     ]
     await message.answer("\n".join(lines), reply_markup=kb(*rows))
@@ -202,6 +206,62 @@ async def cb_admin_cancel_ask(cb: CallbackQuery, session):
         f"Отменить «{esc(event.title)}»? Все участники получат уведомление.",
         reply_markup=kb(
             [btn("🚫 Да, отменить мероприятие", f"adm:cancel2:{event.id}")],
+            [btn("⬅️ Назад", f"adm:e:{event.id}")],
+        ),
+    )
+    await cb.answer()
+
+
+# --- Удаление мероприятия (полное, для чистки тестовых) ----------------------
+
+@router.callback_query(F.data.startswith("adm:del2:"))
+async def cb_admin_delete_go(cb: CallbackQuery, session):
+    event = await session.get(Event, int(cb.data.split(":")[2]))
+    if event is None:
+        await cb.answer("Не найдено", show_alert=True)
+        return
+    title = event.title
+    # снимаем участников (без уведомлений — это полное удаление), затем локации
+    await session.execute(
+        sa.delete(Registration).where(Registration.event_id == event.id)
+    )
+    await session.execute(sa.delete(Location).where(Location.event_id == event.id))
+    await session.delete(event)
+    await session.commit()
+    await safe_delete(cb.message)
+    await cb.message.answer(
+        f"🗑 Мероприятие «{esc(title)}» удалено полностью.",
+        reply_markup=kb([btn("⬅️ К мероприятиям", "adm:events")]),
+    )
+    await cb.answer()
+
+
+@router.callback_query(F.data.startswith("adm:del:"))
+async def cb_admin_delete_ask(cb: CallbackQuery, session):
+    event = await session.get(Event, int(cb.data.split(":")[2]))
+    if event is None:
+        await cb.answer("Не найдено", show_alert=True)
+        return
+    active = (
+        await session.execute(
+            sa.select(sa.func.count()).select_from(Registration).where(
+                Registration.event_id == event.id,
+                Registration.status != RegStatus.CANCELLED,
+            )
+        )
+    ).scalar_one()
+    warn = (
+        f"\n\n⚠️ У мероприятия {active} активных записей — они тоже будут удалены "
+        "БЕЗ уведомления участникам. Если нужно предупредить людей — используйте "
+        "«Отменить»."
+        if active
+        else ""
+    )
+    await safe_delete(cb.message)
+    await cb.message.answer(
+        f"Удалить «{esc(event.title)}» без возможности восстановления?{warn}",
+        reply_markup=kb(
+            [btn("🗑 Да, удалить навсегда", f"adm:del2:{event.id}")],
             [btn("⬅️ Назад", f"adm:e:{event.id}")],
         ),
     )

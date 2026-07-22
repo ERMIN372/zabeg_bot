@@ -133,7 +133,7 @@ async def _ask_email(message: Message, state: FSMContext):
 
 
 @router.message(ProfileForm.email, F.text)
-async def profile_email(message: Message, state: FSMContext):
+async def profile_email(message: Message, state: FSMContext, session, db_user: User):
     value = (message.text or "").strip()
     if not EMAIL_RE.match(value):
         await message.answer(
@@ -143,46 +143,24 @@ async def profile_email(message: Message, state: FSMContext):
         )
         return
     await state.update_data(email=value)
-    await _ask_marketing(message, state)
+    await _finish_profile(message, state, session, db_user)
 
 
 @router.callback_query(ProfileForm.email, F.data == "profile:skip_email")
-async def profile_skip_email(cb: CallbackQuery, state: FSMContext):
+async def profile_skip_email(cb: CallbackQuery, state: FSMContext, session, db_user: User):
     await state.update_data(email=None)
-    await _ask_marketing(cb.message, state)
+    await _finish_profile(cb.message, state, session, db_user)
     await cb.answer()
 
 
-async def _ask_marketing(message: Message, state: FSMContext):
-    await state.set_state(ProfileForm.marketing)
-    await message.answer(
-        "Хотите получать новости и анонсы сообщества?",
-        reply_markup=kb(
-            [btn("✅ Да, присылайте", "profile:mkt:yes")],
-            [btn("Нет, спасибо", "profile:mkt:no")],
-        ),
-    )
-
-
-@router.callback_query(ProfileForm.marketing, F.data.startswith("profile:mkt:"))
-async def profile_finish(
-    cb: CallbackQuery, state: FSMContext, session, db_user: User, config
-):
+async def _finish_profile(
+    message: Message, state: FSMContext, session, db_user: User
+) -> None:
     data = await state.get_data()
-    marketing_yes = cb.data.endswith(":yes")
     db_user.name = data.get("name")
     db_user.surname = data.get("surname")
     db_user.phone = data.get("phone")
     db_user.email = data.get("email")
-    if marketing_yes and db_user.consent_marketing_at is None:
-        db_user.consent_marketing_at = utcnow()
-        session.add(
-            ConsentLog(
-                user_id=db_user.id,
-                kind=ConsentKind.MARKETING,
-                version=config.consent_version,
-            )
-        )
     await session.commit()
     await state.clear()
 
@@ -191,7 +169,4 @@ async def profile_finish(
     if after:
         rows.append([btn("▶️ Продолжить запись", after)])
     rows.append(menu_btn_row())
-    await cb.message.answer(
-        "✅ Карточка участника создана!", reply_markup=kb(*rows)
-    )
-    await cb.answer()
+    await message.answer("✅ Карточка участника создана!", reply_markup=kb(*rows))
