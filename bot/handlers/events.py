@@ -18,7 +18,7 @@ from bot.keyboards import btn, kb, menu_btn_row
 from config import Config
 from db.models import Event, EventKind, EventStatus, Location, RegStatus, Registration, User
 from services import registration as reg_service
-from services.notify import send_notes
+from services.notify import Note, send_notes
 from services.registration import ConfirmResult
 from services.timeutil import format_date_ru, format_time_ru, utcnow
 
@@ -292,6 +292,7 @@ async def cb_confirm_registration(
     )
     await safe_delete(cb.message)
     if result == ConfirmResult.CONFIRMED:
+        await _notify_support_new_reg(cb.bot, config, reg)
         await cb.message.answer(
             reg_details_text(reg),
             reply_markup=kb(
@@ -336,6 +337,7 @@ async def cb_waitlist_join(
     result, reg = await reg_service.join_waitlist(session, db_user, event.id, loc.id)
     await safe_delete(cb.message)
     if result == ConfirmResult.CONFIRMED:
+        await _notify_support_new_reg(cb.bot, config, reg)
         await cb.message.answer(
             reg_details_text(reg, header="Повезло — место как раз освободилось. Вы записаны!"),
             reply_markup=kb(
@@ -344,6 +346,7 @@ async def cb_waitlist_join(
             ),
         )
     elif result == ConfirmResult.WAITLISTED:
+        await _notify_support_new_reg(cb.bot, config, reg, waitlist=True)
         pos = await reg_service.waitlist_position(session, reg)
         await cb.message.answer(
             f"📝 Вы в листе ожидания «{esc(event.title)}» ({esc(loc.name)}), "
@@ -368,8 +371,33 @@ async def _load_own_reg(session, db_user: User, reg_id: int) -> Registration | N
     return reg
 
 
+async def _notify_support_new_reg(
+    bot, config: Config, reg: Registration, *, waitlist: bool = False
+) -> None:
+    """Постит в группу поддержки уведомление о новой записи на забег."""
+    if not config.support_chat_id:
+        return
+    user, event, loc = reg.user, reg.event, reg.location
+    head = "📝 Новая запись в лист ожидания" if waitlist else "🆕 Новая запись на забег"
+    lines = [
+        head,
+        "",
+        f"<b>{esc(event.title)}</b>",
+        f"📍 {esc(loc.name)}",
+        f"🗓 {format_date_ru(event.starts_at, loc.timezone)}, "
+        f"{format_time_ru(event.starts_at, loc.timezone)}",
+        "",
+        f"👤 {esc(user.full_name)}",
+    ]
+    if user.phone:
+        lines.append(f"📞 {esc(user.phone)}")
+    if user.email:
+        lines.append(f"✉️ {esc(user.email)}")
+    await send_notes(bot, [Note(chat_id=config.support_chat_id, text="\n".join(lines))])
+
+
 @router.callback_query(F.data.startswith("wl:accept:"))
-async def cb_waitlist_accept(cb: CallbackQuery, session, db_user: User):
+async def cb_waitlist_accept(cb: CallbackQuery, session, db_user: User, config: Config):
     reg = await _load_own_reg(session, db_user, int(cb.data.split(":")[2]))
     if reg is None:
         await cb.answer("Запись не найдена", show_alert=True)
@@ -380,6 +408,8 @@ async def cb_waitlist_accept(cb: CallbackQuery, session, db_user: User):
     result = await reg_service.confirm_from_waitlist(session, reg)
     await safe_delete(cb.message)
     if result in (ConfirmResult.CONFIRMED, ConfirmResult.ALREADY):
+        if result == ConfirmResult.CONFIRMED:
+            await _notify_support_new_reg(cb.bot, config, reg)
         await cb.message.answer(
             reg_details_text(reg),
             reply_markup=kb(
