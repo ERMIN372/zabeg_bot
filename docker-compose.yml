@@ -53,5 +53,40 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Веб-сервер mini app (админка). Наружу не публикуется — доступ только через
+  # caddy (HTTPS). Запускается лишь при заданном WEBAPP_DOMAIN.
+  webapp:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://zabeg:${POSTGRES_PASSWORD:-zabeg}@postgres:5432/zabeg
+    command: python -m webapp.main
+    restart: unless-stopped
+    expose:
+      - "8080"
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=1
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Reverse-proxy с автоматическим бесплатным TLS (Let's Encrypt) для mini app.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      WEBAPP_DOMAIN: ${WEBAPP_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - webapp
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

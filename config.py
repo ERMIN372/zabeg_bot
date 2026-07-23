@@ -25,6 +25,9 @@ class Config:
     waitlist_confirm_hours: int
     scheduler_tick_seconds: int
     default_timezone: str
+    webapp_url: str      # публичный https-URL mini app (пусто = кнопка не показывается)
+    webapp_host: str
+    webapp_port: int
 
 
 def load_config() -> Config:
@@ -46,4 +49,7 @@ def load_config() -> Config:
         waitlist_confirm_hours=_get_int("WAITLIST_CONFIRM_HOURS", 2),
         scheduler_tick_seconds=_get_int("SCHEDULER_TICK_SECONDS", 30),
         default_timezone=os.getenv("DEFAULT_TIMEZONE", "Europe/Moscow"),
+        webapp_url=os.getenv("WEBAPP_URL", "").strip().rstrip("/"),
+        webapp_host=os.getenv("WEBAPP_HOST", "0.0.0.0"),
+        webapp_port=_get_int("WEBAPP_PORT", 8080),
     )

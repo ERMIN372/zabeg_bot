@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 
 def btn(text: str, callback_data: str) -> InlineKeyboardButton:
@@ -7,6 +7,11 @@ def btn(text: str, callback_data: str) -> InlineKeyboardButton:
 
 def ubtn(text: str, url: str) -> InlineKeyboardButton:
     return InlineKeyboardButton(text=text, url=url)
+
+
+def wbtn(text: str, url: str) -> InlineKeyboardButton:
+    """Кнопка запуска mini app (доступна в приватном чате, URL обязательно https)."""
+    return InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))
 
 
 def kb(*rows: list[InlineKeyboardButton]) -> InlineKeyboardMarkup:
