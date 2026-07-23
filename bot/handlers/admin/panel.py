@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, CallbackQuery, Message, TelegramObject
 
 from bot.helpers import TEXT_INPUT, esc, safe_delete
-from bot.keyboards import btn, kb
+from bot.keyboards import btn, kb, wbtn
 from bot.states import AdminEditContent, AdminMoveEvent
 from config import Config
 from db.models import Event, EventKind, EventStatus, Location, RegStatus, Registration
@@ -29,27 +29,35 @@ router.message.filter(AdminFilter())
 router.callback_query.filter(AdminFilter())
 
 
-def admin_menu_kb():
-    return kb(
+def admin_menu_kb(webapp_url: str = ""):
+    rows = []
+    if webapp_url:
+        rows.append([wbtn("🚀 Открыть панель (mini app)", webapp_url)])
+    rows += [
         [btn("📋 Мероприятия", "adm:events")],
         [btn("➕ Создать мероприятие", "adm:new")],
         [btn("📝 Тексты разделов", "adm:texts")],
         [btn("📤 Экспорт всех регистраций", "adm:export")],
         [btn("🔄 Пересчитать места", "adm:recount")],
-    )
+    ]
+    return kb(*rows)
 
 
 @router.message(Command("admin"))
-async def cmd_admin(message: Message, state: FSMContext):
+async def cmd_admin(message: Message, state: FSMContext, config: Config):
     await state.clear()
-    await message.answer("🔧 <b>Админ-панель</b>", reply_markup=admin_menu_kb())
+    await message.answer(
+        "🔧 <b>Админ-панель</b>", reply_markup=admin_menu_kb(config.webapp_url)
+    )
 
 
 @router.callback_query(F.data == "adm:menu")
-async def cb_admin_menu(cb: CallbackQuery, state: FSMContext):
+async def cb_admin_menu(cb: CallbackQuery, state: FSMContext, config: Config):
     await state.clear()
     await safe_delete(cb.message)
-    await cb.message.answer("🔧 <b>Админ-панель</b>", reply_markup=admin_menu_kb())
+    await cb.message.answer(
+        "🔧 <b>Админ-панель</b>", reply_markup=admin_menu_kb(config.webapp_url)
+    )
     await cb.answer()
 
 

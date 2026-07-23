@@ -1,0 +1,7 @@
+# Caddy автоматически выпускает и продлевает бесплатный TLS-сертификат
+# (Let's Encrypt) для домена WEBAPP_DOMAIN и проксирует запросы на сервис
+# webapp внутри docker-сети. HTTPS обязателен для Telegram Mini App.
+{$WEBAPP_DOMAIN} {
+	encode gzip
+	reverse_proxy webapp:8080
+}
