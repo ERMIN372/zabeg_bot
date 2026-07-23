@@ -17,7 +17,7 @@ from aiogram.types import (
     ReplyKeyboardRemove,
 )
 
-from bot.helpers import esc
+from bot.helpers import TEXT_INPUT, esc
 from bot.keyboards import btn, kb, menu_btn_row
 from bot.states import ProfileForm
 from config import Config
@@ -78,7 +78,7 @@ async def profile_phone_contact(
     await _ask_name(message, state)
 
 
-@router.message(ProfileForm.phone, F.text)
+@router.message(ProfileForm.phone, TEXT_INPUT)
 async def profile_phone_text(
     message: Message, state: FSMContext, session, db_user: User, config: Config
 ):
@@ -102,10 +102,10 @@ async def _ask_name(message: Message, state: FSMContext):
     )
 
 
-@router.message(ProfileForm.name, F.text)
+@router.message(ProfileForm.name, TEXT_INPUT)
 async def profile_name(message: Message, state: FSMContext):
     value = (message.text or "").strip()
-    if not value or value.startswith("/") or len(value) > 100:
+    if not value or len(value) > 100:
         await message.answer("Пожалуйста, отправьте имя обычным текстом.")
         return
     await state.update_data(name=value)
@@ -113,10 +113,10 @@ async def profile_name(message: Message, state: FSMContext):
     await message.answer("<b>Ваша фамилия?</b>")
 
 
-@router.message(ProfileForm.surname, F.text)
+@router.message(ProfileForm.surname, TEXT_INPUT)
 async def profile_surname(message: Message, state: FSMContext):
     value = (message.text or "").strip()
-    if not value or value.startswith("/") or len(value) > 100:
+    if not value or len(value) > 100:
         await message.answer("Пожалуйста, отправьте фамилию обычным текстом.")
         return
     await state.update_data(surname=value)
@@ -132,7 +132,7 @@ async def _ask_email(message: Message, state: FSMContext):
     )
 
 
-@router.message(ProfileForm.email, F.text)
+@router.message(ProfileForm.email, TEXT_INPUT)
 async def profile_email(message: Message, state: FSMContext, session, db_user: User):
     value = (message.text or "").strip()
     if not EMAIL_RE.match(value):

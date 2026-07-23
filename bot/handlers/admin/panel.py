@@ -5,7 +5,7 @@ from aiogram.filters import BaseFilter, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, CallbackQuery, Message, TelegramObject
 
-from bot.helpers import esc, safe_delete
+from bot.helpers import TEXT_INPUT, esc, safe_delete
 from bot.keyboards import btn, kb
 from bot.states import AdminEditContent, AdminMoveEvent
 from config import Config
@@ -284,7 +284,7 @@ async def cb_admin_move(cb: CallbackQuery, session, state: FSMContext):
     await cb.answer()
 
 
-@router.message(AdminMoveEvent.date, F.text)
+@router.message(AdminMoveEvent.date, TEXT_INPUT)
 async def admin_move_date(message: Message, state: FSMContext):
     try:
         parse_local(message.text.strip(), "12:00", "UTC")
@@ -296,7 +296,7 @@ async def admin_move_date(message: Message, state: FSMContext):
     await message.answer("Новое время (ЧЧ:ММ, местное для мероприятия)?")
 
 
-@router.message(AdminMoveEvent.time, F.text)
+@router.message(AdminMoveEvent.time, TEXT_INPUT)
 async def admin_move_time(message: Message, state: FSMContext, session):
     data = await state.get_data()
     event = await session.get(Event, data["event_id"])
@@ -379,7 +379,7 @@ async def admin_content_photo(message: Message, state: FSMContext, session):
     await message.answer("✅ Сохранено", reply_markup=kb([btn("⬅️ К текстам", "adm:texts")]))
 
 
-@router.message(AdminEditContent.text, F.text)
+@router.message(AdminEditContent.text, TEXT_INPUT)
 async def admin_content_text(message: Message, state: FSMContext, session):
     data = await state.get_data()
     await set_content(session, data["content_key"], text=message.text)

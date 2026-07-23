@@ -154,6 +154,9 @@ class SupportMessage(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     group_message_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    # текст исходного вопроса — чтобы в ответе напомнить пользователю, на что
+    # именно отвечают (None для медиа-вопросов без подписи)
+    question_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 

@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.handlers.admin.panel import AdminFilter, show_admin_event_card
-from bot.helpers import esc, safe_delete
+from bot.helpers import TEXT_INPUT, esc, safe_delete
 from bot.keyboards import btn, kb
 from bot.states import AdminCreateEvent, AdminEditField
 from config import Config
@@ -33,14 +33,14 @@ async def cb_new_event(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
 
 
-@router.message(AdminCreateEvent.title, F.text)
+@router.message(AdminCreateEvent.title, TEXT_INPUT)
 async def new_event_title(message: Message, state: FSMContext):
     await state.update_data(title=message.text.strip())
     await state.set_state(AdminCreateEvent.description)
     await message.answer("<b>Описание?</b> (или «-», чтобы оставить пустым)")
 
 
-@router.message(AdminCreateEvent.description, F.text)
+@router.message(AdminCreateEvent.description, TEXT_INPUT)
 async def new_event_description(message: Message, state: FSMContext):
     text = message.text.strip()
     await state.update_data(description="" if text == "-" else text)
@@ -48,7 +48,7 @@ async def new_event_description(message: Message, state: FSMContext):
     await message.answer("<b>Дата?</b> (ДД.ММ.ГГГГ)")
 
 
-@router.message(AdminCreateEvent.date, F.text)
+@router.message(AdminCreateEvent.date, TEXT_INPUT)
 async def new_event_date(message: Message, state: FSMContext):
     try:
         parse_local(message.text.strip(), "12:00", "UTC")
@@ -60,7 +60,7 @@ async def new_event_date(message: Message, state: FSMContext):
     await message.answer("<b>Время начала?</b> (ЧЧ:ММ, местное)")
 
 
-@router.message(AdminCreateEvent.time, F.text)
+@router.message(AdminCreateEvent.time, TEXT_INPUT)
 async def new_event_time(message: Message, state: FSMContext, config: Config):
     try:
         parse_local("01.01.2030", message.text.strip(), "UTC")
@@ -75,7 +75,7 @@ async def new_event_time(message: Message, state: FSMContext, config: Config):
     )
 
 
-@router.message(AdminCreateEvent.tz, F.text)
+@router.message(AdminCreateEvent.tz, TEXT_INPUT)
 async def new_event_tz(message: Message, state: FSMContext, config: Config):
     tz = message.text.strip()
     if tz == "-":
@@ -151,21 +151,21 @@ async def cb_add_location(cb: CallbackQuery, state: FSMContext, session):
     await cb.answer()
 
 
-@router.message(AdminCreateEvent.loc_name, F.text)
+@router.message(AdminCreateEvent.loc_name, TEXT_INPUT)
 async def loc_name(message: Message, state: FSMContext):
     await state.update_data(loc_name=message.text.strip())
     await state.set_state(AdminCreateEvent.loc_address)
     await message.answer("<b>Адрес локации?</b>")
 
 
-@router.message(AdminCreateEvent.loc_address, F.text)
+@router.message(AdminCreateEvent.loc_address, TEXT_INPUT)
 async def loc_address(message: Message, state: FSMContext):
     await state.update_data(loc_address=message.text.strip())
     await state.set_state(AdminCreateEvent.loc_capacity)
     await message.answer("<b>Лимит участников?</b> (число)")
 
 
-@router.message(AdminCreateEvent.loc_capacity, F.text)
+@router.message(AdminCreateEvent.loc_capacity, TEXT_INPUT)
 async def loc_capacity(message: Message, state: FSMContext, session, config: Config):
     try:
         capacity = int(message.text.strip())
@@ -370,7 +370,7 @@ async def edit_field_photo(message: Message, state: FSMContext, session):
     )
 
 
-@router.message(AdminEditField.value, F.text)
+@router.message(AdminEditField.value, TEXT_INPUT)
 async def edit_field_text(
     message: Message, state: FSMContext, session, config: Config
 ):
