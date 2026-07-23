@@ -109,17 +109,6 @@ async def profile_name(message: Message, state: FSMContext):
         await message.answer("Пожалуйста, отправьте имя обычным текстом.")
         return
     await state.update_data(name=value)
-    await state.set_state(ProfileForm.surname)
-    await message.answer("<b>Ваша фамилия?</b>")
-
-
-@router.message(ProfileForm.surname, TEXT_INPUT)
-async def profile_surname(message: Message, state: FSMContext):
-    value = (message.text or "").strip()
-    if not value or len(value) > 100:
-        await message.answer("Пожалуйста, отправьте фамилию обычным текстом.")
-        return
-    await state.update_data(surname=value)
     await _ask_email(message, state)
 
 
@@ -158,7 +147,7 @@ async def _finish_profile(
 ) -> None:
     data = await state.get_data()
     db_user.name = data.get("name")
-    db_user.surname = data.get("surname")
+    # фамилию больше не спрашиваем; у уже заполнивших анкету её не затираем
     db_user.phone = data.get("phone")
     db_user.email = data.get("email")
     await session.commit()
