@@ -112,6 +112,19 @@ button.btn:disabled { opacity: .5; }
 .stat .num { font-size: 26px; font-weight: 700; }
 .stat .lbl { font-size: 12px; color: var(--hint); margin-top: 4px; }
 
+.link-btn.danger-link { color: var(--destructive); white-space: nowrap; align-self: flex-start; }
+
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 110px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.bar { width: 100%; background: var(--button); border-radius: 4px 4px 0 0; min-height: 2px; }
+.bar-x { font-size: 10px; color: var(--hint); margin-top: 4px; }
+
+.frow { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.frow-l { flex: 0 0 42%; font-size: 14px; }
+.frow-bar { flex: 1; background: var(--secondary-bg); border-radius: 6px; height: 14px; overflow: hidden; }
+.frow-bar > div { background: var(--button); height: 100%; }
+.frow-v { flex: 0 0 auto; font-weight: 600; font-size: 14px; }
+
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
   background: rgba(0,0,0,.85); color: #fff; padding: 10px 18px;

@@ -150,6 +150,9 @@ async function showEventDetail(id) {
     ${locHtml}
     <button class="btn secondary" id="add-loc">➕ Добавить локацию</button>
 
+    <div class="section-title">Участники</div>
+    <div id="parts"><div class="muted" style="padding:6px 4px">Загрузка…</div></div>
+
     <div class="section-title">Действия</div>
     <div class="card">
       <button class="btn secondary" id="export-ev">📤 Прислать CSV в Telegram</button>
@@ -215,9 +218,44 @@ async function showEventDetail(id) {
     try { await api("/events/" + id, { method: "DELETE" }); toast("Удалено"); go("events"); }
     catch (e) { toast(e.message); }
   };
+
+  loadParticipants(id);
 }
 
 function val(id) { return document.getElementById(id).value.trim(); }
+
+async function loadParticipants(eventId) {
+  const box = document.getElementById("parts");
+  if (!box) return;
+  try {
+    const { registrations } = await api("/events/" + eventId + "/registrations");
+    if (!registrations.length) {
+      box.innerHTML = '<div class="muted" style="padding:6px 4px">Пока никто не записан.</div>';
+      return;
+    }
+    box.innerHTML = registrations.map((r) => `
+      <div class="card">
+        <div class="row">
+          <div>
+            <b>${esc(r.full_name)}</b>
+            <div class="muted">${esc(r.location)} · ${esc(r.status_label)}${r.queue_pos ? " #" + r.queue_pos : ""}</div>
+            <div class="muted">${esc(r.phone || "телефон не указан")}</div>
+          </div>
+          <button class="link-btn danger-link" data-cancelreg="${r.id}">Снять</button>
+        </div>
+      </div>`).join("");
+    box.querySelectorAll("[data-cancelreg]").forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAsk("Снять запись участника? Он получит уведомление, место уйдёт следующему в очереди."))) return;
+        try {
+          const r = await api("/registrations/" + b.dataset.cancelreg + "/cancel", { method: "POST" });
+          toast("Снято. Уведомлений: " + r.notified);
+          loadParticipants(eventId);
+        } catch (e) { toast(e.message); }
+      };
+    });
+  } catch (e) { box.innerHTML = errBox(e); }
+}
 
 function showCreateEvent() {
   app.innerHTML = `
@@ -309,22 +347,190 @@ VIEWS.texts = async function () {
   } catch (e) { app.innerHTML = errBox(e); }
 };
 
-// --- Статистика -------------------------------------------------------------
+// --- Люди (пользователи + рассылка) -----------------------------------------
 
-VIEWS.stats = async function () {
+let userQuery = "";
+
+function debounce(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+VIEWS.users = function () {
+  app.innerHTML = `
+    <button class="btn secondary" id="broadcast-btn">📣 Рассылка</button>
+    <input id="user-search" placeholder="Поиск: имя, телефон, email" value="${esc(userQuery)}">
+    <div id="userlist"><div class="empty">Загрузка…</div></div>`;
+  document.getElementById("broadcast-btn").onclick = showBroadcast;
+  const s = document.getElementById("user-search");
+  s.oninput = debounce(() => { userQuery = s.value.trim(); loadUsers(); }, 350);
+  loadUsers();
+};
+
+async function loadUsers() {
+  const box = document.getElementById("userlist");
+  if (!box) return;
+  try {
+    const { users, truncated } = await api("/users" + (userQuery ? "?q=" + encodeURIComponent(userQuery) : ""));
+    if (!users.length) { box.innerHTML = '<div class="empty">Никого не найдено.</div>'; return; }
+    box.innerHTML = users.map(userCard).join("") +
+      (truncated ? '<div class="muted" style="text-align:center;padding:8px">Показаны первые 100 — уточните поиск.</div>' : "");
+    box.querySelectorAll("[data-user]").forEach((el) =>
+      (el.onclick = () => showUserDetail(+el.dataset.user)));
+  } catch (e) { box.innerHTML = errBox(e); }
+}
+
+function userCard(u) {
+  return `<div class="card card-tap" data-user="${u.id}">
+    <div class="row"><h3>${esc(u.full_name)}</h3>${u.reg_count ? `<span class="badge active">${u.reg_count} зап.</span>` : ""}</div>
+    <div class="muted">${esc(u.phone || "без телефона")}${u.email ? " · " + esc(u.email) : ""}</div>
+    <div class="muted">с ${esc(u.created_at)}</div>
+  </div>`;
+}
+
+async function showUserDetail(id) {
+  loading();
+  let u;
+  try { u = await api("/users/" + id); } catch (e) { app.innerHTML = errBox(e); return; }
+  const regs = u.registrations || [];
+  app.innerHTML = `
+    <button class="link-btn" id="back">← К списку</button>
+    <div class="card">
+      <h3>${esc(u.full_name)}</h3>
+      <div class="muted">📞 ${esc(u.phone || "—")}</div>
+      <div class="muted">✉️ ${esc(u.email || "—")}</div>
+      <div class="muted">Telegram ID: ${u.telegram_id}</div>
+      <div class="muted">В боте с ${esc(u.created_at)}</div>
+      <div class="muted">Согласие на ПДн: ${u.has_pdn_consent ? "да" : "нет"}</div>
+    </div>
+    <div class="section-title">Записи (${regs.length})</div>
+    ${regs.length ? regs.map((r) => `
+      <div class="card">
+        <div class="row"><b>${esc(r.event_title)}</b><span class="badge">${esc(r.status_label)}</span></div>
+        <div class="muted">${esc(r.location)} · ${esc(r.date)}</div>
+      </div>`).join("") : '<div class="muted" style="padding:6px 4px">Записей нет.</div>'}`;
+  document.getElementById("back").onclick = () => go("users");
+}
+
+async function showBroadcast() {
+  loading();
+  let events = [];
+  try { events = (await api("/events")).events.filter((e) => e.status !== "cancelled"); } catch (e) {}
+  app.innerHTML = `
+    <button class="link-btn" id="back">← К людям</button>
+    <div class="card">
+      <h3>📣 Рассылка</h3>
+      <label>Кому</label>
+      <select id="b-target">
+        <option value="all">Всем пользователям бота</option>
+        <option value="event">Участникам мероприятия</option>
+      </select>
+      <div id="b-event-wrap" class="hidden">
+        <label>Мероприятие</label>
+        <select id="b-event">${events.map((e) => `<option value="${e.id}">${esc(e.title)} — ${esc(e.date_human)}</option>`).join("")}</select>
+      </div>
+      <label>Текст сообщения</label>
+      <textarea id="b-text" placeholder="Что отправить участникам?"></textarea>
+      <div class="muted" id="b-count">Получателей: …</div>
+      <button class="btn" id="b-send">Отправить</button>
+    </div>`;
+  document.getElementById("back").onclick = () => go("users");
+  const target = document.getElementById("b-target");
+  const wrap = document.getElementById("b-event-wrap");
+  const evSel = document.getElementById("b-event");
+
+  async function refreshCount() {
+    const body = { target: target.value, preview: true };
+    if (target.value === "event") body.event_id = evSel && evSel.value ? +evSel.value : null;
+    document.getElementById("b-count").textContent = "Получателей: …";
+    try {
+      const r = await api("/broadcast", { method: "POST", body: JSON.stringify(body) });
+      document.getElementById("b-count").textContent = "Получателей: " + r.count;
+    } catch (e) { document.getElementById("b-count").textContent = "—"; }
+  }
+  target.onchange = () => { wrap.classList.toggle("hidden", target.value !== "event"); refreshCount(); };
+  if (evSel) evSel.onchange = refreshCount;
+  refreshCount();
+
+  document.getElementById("b-send").onclick = async () => {
+    const text = document.getElementById("b-text").value.trim();
+    if (!text) return toast("Введите текст");
+    const body = { target: target.value, text };
+    if (target.value === "event") {
+      if (!evSel || !evSel.value) return toast("Выберите мероприятие");
+      body.event_id = +evSel.value;
+    }
+    if (!(await confirmAsk("Отправить сообщение? Оно уйдёт реальным пользователям."))) return;
+    const btn = document.getElementById("b-send");
+    btn.disabled = true; btn.textContent = "Отправляю…";
+    try {
+      const r = await api("/broadcast", { method: "POST", body: JSON.stringify(body) });
+      toast("Отправлено: " + r.sent + " из " + r.total);
+    } catch (e) { toast(e.message); }
+    btn.disabled = false; btn.textContent = "Отправить";
+  };
+}
+
+// --- Аналитика --------------------------------------------------------------
+
+VIEWS.analytics = async function () {
   loading();
   try {
-    const s = await api("/stats");
+    const a = await api("/analytics");
+    const u = a.users, r = a.registrations;
+    const maxG = Math.max(1, ...a.growth.map((g) => g.count));
+    const growthBars = a.growth.map((g) =>
+      `<div class="bar-col" title="${g.date}: ${g.count}"><div class="bar" style="height:${Math.round(g.count / maxG * 100)}%"></div><div class="bar-x">${g.date.split(".")[0]}</div></div>`).join("");
+    const funnelMax = Math.max(1, u.total);
+    const frow = (label, v) =>
+      `<div class="frow"><div class="frow-l">${label}</div><div class="frow-bar"><div style="width:${Math.round(v / funnelMax * 100)}%"></div></div><div class="frow-v">${v}</div></div>`;
+
     app.innerHTML = `
       <div class="stat-grid">
-        <div class="stat"><div class="num">${s.active_events}</div><div class="lbl">активных мероприятий</div></div>
-        <div class="stat"><div class="num">${s.confirmed}</div><div class="lbl">записаны</div></div>
-        <div class="stat"><div class="num">${s.waitlist}</div><div class="lbl">в листе ожидания</div></div>
+        <div class="stat"><div class="num">${u.total}</div><div class="lbl">пользователей</div></div>
+        <div class="stat"><div class="num">${u.new_7d}</div><div class="lbl">новых за 7 дн.</div></div>
+        <div class="stat"><div class="num">${u.new_30d}</div><div class="lbl">новых за 30 дн.</div></div>
+        <div class="stat"><div class="num">${r.confirmed}</div><div class="lbl">записаны</div></div>
+        <div class="stat"><div class="num">${r.waitlist}</div><div class="lbl">лист ожидания</div></div>
+        <div class="stat"><div class="num">${r.cancelled}</div><div class="lbl">отмен</div></div>
       </div>
-      <button class="btn secondary" id="export-all" style="margin-top:16px">📤 Экспорт всех регистраций (CSV в Telegram)</button>
-      <button class="btn secondary" id="recount">🔄 Пересчитать места</button>`;
+
+      <div class="section-title">Новые пользователи (14 дней)</div>
+      <div class="card"><div class="bars">${growthBars}</div></div>
+
+      <div class="section-title">Воронка</div>
+      <div class="card">
+        ${frow("Зашли в бота", u.total)}
+        ${frow("Заполнили анкету", u.complete)}
+        ${frow("Записались хоть раз", u.ever_registered)}
+      </div>
+
+      <div class="section-title">Топ локаций</div>
+      <div class="card">
+        ${a.top_locations.length ? a.top_locations.map((l) => `<div class="row"><span>${esc(l.name)}</span><span class="badge">${l.count}</span></div>`).join("") : '<div class="muted">Пока нет данных.</div>'}
+      </div>
+
+      <div class="section-title">Ближайшие мероприятия</div>
+      ${a.upcoming.length ? a.upcoming.map((e) => `
+        <div class="card">
+          <div class="row"><b>${esc(e.title)}</b><span class="badge">${e.taken}/${e.capacity}</span></div>
+          <div class="muted">${esc(e.date)}</div>
+          <div class="frow-bar" style="margin-top:8px"><div style="width:${e.percent}%"></div></div>
+        </div>`).join("") : '<div class="muted" style="padding:6px 4px">Нет предстоящих.</div>'}
+
+      <div class="section-title">Обслуживание</div>
+      <div class="card">
+        <button class="btn secondary" id="export-all">📤 Экспорт регистраций (CSV)</button>
+        <button class="btn secondary" id="export-users">👥 Экспорт пользователей (CSV)</button>
+        <button class="btn secondary" id="recount">🔄 Пересчитать места</button>
+      </div>`;
+
     document.getElementById("export-all").onclick = async () => {
       try { await api("/export", { method: "POST", body: JSON.stringify({}) }); toast("Файл отправлен в Telegram"); }
+      catch (e) { toast(e.message); }
+    };
+    document.getElementById("export-users").onclick = async () => {
+      try { await api("/users/export", { method: "POST" }); toast("Файл отправлен в Telegram"); }
       catch (e) { toast(e.message); }
     };
     document.getElementById("recount").onclick = async () => {
