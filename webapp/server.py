@@ -642,7 +642,6 @@ async def api_analytics(request: web.Request) -> web.Response:
         complete = await count(
             sa.select(sa.func.count()).select_from(User).where(
                 User.name.is_not(None),
-                User.surname.is_not(None),
                 User.phone.is_not(None),
             )
         )

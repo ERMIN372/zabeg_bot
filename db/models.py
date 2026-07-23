@@ -60,7 +60,8 @@ class User(Base):
 
     @property
     def profile_complete(self) -> bool:
-        return bool(self.name and self.surname and self.phone)
+        # фамилию больше не запрашиваем — достаточно имени и телефона
+        return bool(self.name and self.phone)
 
     @property
     def full_name(self) -> str:
