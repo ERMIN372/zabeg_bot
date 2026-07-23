@@ -54,14 +54,22 @@ async def support_admin_reply(message: Message, session, config: Config):
     user = await session.get(User, mapping.user_id)
     if user is None:
         return
+    quote = ""
+    if mapping.question_text:
+        q = mapping.question_text
+        q = q[:200] + "…" if len(q) > 200 else q
+        quote = f"<blockquote>{esc(q)}</blockquote>\n"
     try:
         if message.text:
             await message.bot.send_message(
                 user.telegram_id,
-                f"💬 <b>Ответ поддержки:</b>\n\n{esc(message.text)}",
+                f"💬 <b>Ответ поддержки</b> на ваш вопрос:\n{quote}\n{esc(message.text)}",
             )
         else:
-            await message.bot.send_message(user.telegram_id, "💬 <b>Ответ поддержки:</b>")
+            await message.bot.send_message(
+                user.telegram_id,
+                f"💬 <b>Ответ поддержки</b> на ваш вопрос:\n{quote}",
+            )
             await message.copy_to(user.telegram_id)
         await message.reply("✅ Доставлено")
     except Exception:
@@ -101,7 +109,13 @@ async def support_relay(message: Message, session, db_user: User, config: Config
         )
         return
 
-    session.add(SupportMessage(user_id=db_user.id, group_message_id=group_message_id))
+    session.add(
+        SupportMessage(
+            user_id=db_user.id,
+            group_message_id=group_message_id,
+            question_text=message.text or message.caption,
+        )
+    )
     await session.commit()
     await message.answer(
         "✅ Передали ваш вопрос команде — ответим прямо в этом чате.",

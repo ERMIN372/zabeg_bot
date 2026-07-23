@@ -1,9 +1,16 @@
 import html
 
+from aiogram import F
 from aiogram.types import InlineKeyboardMarkup, Message
 
 from db.models import RegStatus, Registration
 from services.timeutil import format_date_ru, format_time_ru
+
+# Фильтр текстового ввода для анкет/редакторов: обычный текст, но НЕ команда.
+# Команды (/start, /support, …) должны отработать как команды, а не попасть
+# в редактируемое поле как его значение. Если текст — команда, апдейт
+# «проваливается» дальше по роутерам к нужному обработчику команды.
+TEXT_INPUT = F.text & ~F.text.startswith("/")
 
 
 def esc(s: str | None) -> str:
